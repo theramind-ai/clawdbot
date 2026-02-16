@@ -8,13 +8,13 @@ const VERIFY_TOKEN = "claw_verify_123";
 app.get("/webhook", (req, res) => {
   const mode = req.query["hub.mode"];
   const token = req.query["hub.verify_token"];
-  const challenge = req.query["hub.challenge"];
+  const challenge = req.query["hub.challenge"]; 
 
   if (mode === "subscribe" && token === VERIFY_TOKEN) {
     console.log("Webhook verificado");
-    res.status(200).send(challenge);
+    return res.status(200).send(challenge);
   } else {
-    res.sendStatus(403);
+    return res.sendStatus(403);
   }
 });
 
@@ -23,8 +23,9 @@ app.post("/webhook", (req, res) => {
   res.sendStatus(200);
 });
 
-const PORT = process.env.PORT || 3000;
+// 🔥 ESSA PARTE É CRÍTICA NO RENDER
+const PORT = process.env.PORT;
 
-app.listen(PORT, () => {
+app.listen(PORT, "0.0.0.0", () => {
   console.log(`Servidor rodando na porta ${PORT}`);
 });
