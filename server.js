@@ -1,53 +1,16 @@
 import express from "express";
-import axios from "axios";
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import fetch from "node-fetch"; // npm install node-fetch@3
+import dotenv from "dotenv";
+
+dotenv.config();
 
 const app = express();
 app.use(express.json());
 
-const VERIFY_TOKEN = "claw_verify_123";
+const VERIFY_TOKEN = process.env.VERIFY_TOKEN;
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 
-// 🔐 Meta
-const WHATSAPP_TOKEN = process.env.WHATSAPP_TOKEN;
-const PHONE_NUMBER_ID = process.env.PHONE_NUMBER_ID;
-
-// 🔐 Gemini
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-
-async function getAIResponse(userMessage) {
-  const model = genAI.getGenerativeModel({
-    model: "gemini-1.5-flash",
-  });
-
-  const prompt = `
-Você é um assistente inteligente que responde no WhatsApp.
-Responda de forma clara, objetiva e amigável.
-Mensagem do usuário: ${userMessage}
-`;
-
-  const result = await model.generateContent(prompt);
-  const response = await result.response;
-
-  return response.text();
-}
-
-async function sendMessage(to, message) {
-  await axios.post(
-    `https://graph.facebook.com/v18.0/${PHONE_NUMBER_ID}/messages`,
-    {
-      messaging_product: "whatsapp",
-      to: to,
-      text: { body: message },
-    },
-    {
-      headers: {
-        Authorization: `Bearer ${WHATSAPP_TOKEN}`,
-        "Content-Type": "application/json",
-      },
-    }
-  );
-}
-
+// Webhook de verificação
 app.get("/webhook", (req, res) => {
   const mode = req.query["hub.mode"];
   const token = req.query["hub.verify_token"];
@@ -61,32 +24,58 @@ app.get("/webhook", (req, res) => {
   }
 });
 
+// Receber mensagens do WhatsApp
 app.post("/webhook", async (req, res) => {
+  console.log("Mensagem recebida:", JSON.stringify(req.body, null, 2));
+
   try {
-    const message =
-      req.body.entry?.[0]?.changes?.[0]?.value?.messages?.[0];
+    const entry = req.body.entry?.[0];
+    const changes = entry?.changes?.[0];
+    const value = changes?.value;
+    const messages = value?.messages;
 
-    if (message?.text?.body) {
-      const userMessage = message.text.body;
+    if (!messages || messages.length === 0) {
+      return res.sendStatus(200); // nada pra processar
+    }
+
+    for (const message of messages) {
       const from = message.from;
+      const text = message.text?.body;
 
-      console.log("Mensagem recebida:", userMessage);
+      if (!text) continue;
 
-      const aiReply = await getAIResponse(userMessage);
+      console.log(`Mensagem de ${from}: ${text}`);
 
-      await sendMessage(from, aiReply);
+      // 🔥 Enviar para Gemini
+      const geminiResponse = await fetch("https://gemini.googleapis.com/v1/your-endpoint", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${GEMINI_API_KEY}`
+        },
+        body: JSON.stringify({
+          prompt: text,
+          max_output_tokens: 100
+        })
+      });
+
+      const geminiData = await geminiResponse.json();
+      const replyText = geminiData?.output_text || "Não consegui entender sua mensagem.";
+
+      // 🔥 Aqui você enviaria a resposta de volta para o WhatsApp
+      console.log(`Resposta para ${from}: ${replyText}`);
+      // use fetch para chamar a API do WhatsApp Business e enviar a mensagem
     }
 
     res.sendStatus(200);
-  } catch (error) {
-    console.error("Erro:", error.response?.data || error.message);
+  } catch (err) {
+    console.error("Erro processando mensagem:", err);
     res.sendStatus(500);
   }
 });
 
-// 🔥 ESSA PARTE É CRÍTICA NO RENDER
-const PORT = process.env.PORT;
-
+// 🔥 Porta do Render ou fallback
+const PORT = process.env.PORT || 3000;
 app.listen(PORT, "0.0.0.0", () => {
   console.log(`Servidor rodando na porta ${PORT}`);
 });
