@@ -86,7 +86,7 @@ app.post("/webhook", async (req, res) => {
 
     // ✅ Chamada Gemini
     
-const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${GEMINI_API_KEY}`;
+const geminiUrl = `https://generativelanguage.googleapis.com/v1/models/gemini-pro:generateContent?key=${GEMINI_API_KEY}`;
     const geminiResponse = await fetch(geminiUrl, {
       method: "POST",
       headers: {
@@ -109,6 +109,7 @@ const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemin
     if (!geminiResponse.ok) {
       const err = await geminiResponse.json();
       console.error("Erro Gemini:", err);
+console.log("API KEY:", GEMINI_API_KEY);
       throw new Error("Falha na Gemini API");
     }
 
